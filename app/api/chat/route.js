@@ -27,7 +27,7 @@ export async function POST(req) {
 
     if (!response.ok && (response.status === 429 || response.status === 503)) {
       console.log("Primary Gemini busy. Trying fallback...");
-      response = await askGemini("gemini-3.1-flash-lite");
+      response = await askGemini("gemini-3.5-flash-lite");
     }
 
     const data = await response.json();
@@ -36,3 +36,19 @@ export async function POST(req) {
       throw new Error(
         data?.error?.message || "Gemini request failed"
       );
+    }
+
+    const text =
+      data?.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text || "")
+        .join("") || "Sorry, I could not generate a response.";
+
+    return Response.json({ content: text });
+  } catch (error) {
+    console.error("Chat API error:", error);
+    return Response.json(
+      { error: error.message || "Something went wrong" },
+      { status: 500 }
+    );
+  }
+}
