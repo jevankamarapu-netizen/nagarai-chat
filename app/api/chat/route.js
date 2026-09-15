@@ -9,19 +9,26 @@ export async function POST(req) {
         parts: [{ text: String(m.content) }],
       }));
 
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": process.env.GEMINI_API_KEY,
-        },
-        body: JSON.stringify({
-          contents,
-        }),
-      }
-    );
+    async function askGemini(model) {
+      return fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": process.env.GEMINI_API_KEY,
+          },
+          body: JSON.stringify({ contents }),
+        }
+      );
+    }
+
+    let response = await askGemini("gemini-3.6-flash");
+
+    if (!response.ok && (response.status === 429 || response.status === 503)) {
+      console.log("Primary Gemini busy. Trying fallback...");
+      response = await askGemini("gemini-3.1-flash-lite");
+    }
 
     const data = await response.json();
 
@@ -29,23 +36,3 @@ export async function POST(req) {
       throw new Error(
         data?.error?.message || "Gemini request failed"
       );
-    }
-
-    const text =
-      data?.candidates?.[0]?.content?.parts
-        ?.map((part) => part.text || "")
-        .join("") ||
-      "Sorry, I could not generate a response.";
-
-    return Response.json({ text });
-  } catch (error) {
-    console.error("Gemini error:", error);
-
-    return Response.json(
-      {
-        error: error?.message || "Gemini request failed",
-      },
-      { status: 500 }
-    );
-  }
-}
